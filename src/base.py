@@ -43,4 +43,13 @@ class PricingResult:
             "rho": self.rho
         }
     
-    
+class PricingEngine(ABC):
+    # abstract base class for all pricing engines 
+    @abstractmethod 
+    def price(self, option: OptionContract) -> PricingResult:
+        pass
+
+    @property 
+    @abstractmethod
+    def name(self) -> str: 
+        pass 
