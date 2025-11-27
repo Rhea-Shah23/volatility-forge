@@ -22,3 +22,25 @@ class OptionContract:
             raise ValueError("option_type must be either 'call' or 'put'")
         self.option_type = self.option_type.lower() 
 
+@dataclass 
+class PricingResult:
+    # contains pricing results and greeks 
+    price: float 
+    delta: Optional[float] = None 
+    gamma: Optional[float] = None 
+    vega: Optional[float] = None 
+    theta: Optional[float] = None 
+    rho: Optional[float] = None 
+
+    def to_dict(self) -> Dict[str, float]:
+        #convert to dict 
+        return {
+            "price": self.price, 
+            "delta": self.delta,
+            "gamma": self.gamma, 
+            "vega": self.vega, 
+            "theta": self.theta, 
+            "rho": self.rho
+        }
+    
+    
