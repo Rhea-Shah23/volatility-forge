@@ -65,3 +65,34 @@ class BlackScholesEngine(PricingEngine):
             theta=theta,
             rho=rho
         )
+    
+    def implied_volatility(self, option: OptionContract, market_price: float, tol: float = 1e-6, max_iter: int = 100) -> float: 
+        # calc implied volatility using Newston-Raphson method
+
+        sigma = 0.3 # random initial guess 
+        for i in range(max_iter): 
+            option_temp = OptionContract(
+                spot=option.spot,
+                strike=option.strike,
+                time_to_maturity=option.time_to_maturity,
+                risk_free_rate=option.risk_free_rate,
+                volatility=sigma,
+                option_type=option.option_type,
+                dividend_yield=option.dividend_yield
+            )
+
+            result = self.price(option_temp) 
+            price_diff = result.price - market_price 
+
+            if abs(price_diff) < tol:
+                return sigma 
+            
+            vega_full = result.vega * 100 
+            if vega_full < 1e-10:
+                raise ValueError("vega is too small for Newton-Raphson")
+            
+            sigma = sigma - price_diff / vega_full
+            sigma = max(sigma, 0.001) 
+
+        raise ValueError(f"implied volatility did not converge after {max_iter} iterations") 
+
