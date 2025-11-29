@@ -99,3 +99,85 @@ class SVI:
         )
         
         return vol[0]
+    
+
+# complete volatility surface across strikes and maturity 
+class VolatilitySurface: 
+    def __init__(self):
+        self.maturities = []
+        self.svi_models = {} 
+
+    # calibrate surface to market quotes
+    def calibrate(self, market_quotes: List[MarketQuote]):
+        # group by maturity 
+        maturity_groups = {}
+        for quote in market_quotes: 
+            T = quote.maturity 
+            if T not in maturity_groups:
+                maturity_groups[T] = [] 
+            maturity_groups[T].append(quote)
+
+        # calibrate svi for each maturity 
+        from ..engines.black_scholes import BlackScholesEngine
+        bs_engine = BlackScholesEngine() 
+
+        for T, quotes in maturity_groups.items():
+            strikes = np.array([q.strike for q in quotes]) 
+            spot = quotes[0].spot 
+            rate = quotes[0].rate
+            forward = spot * np.exp(rate * T)
+
+            implied_vols = [] 
+            for q in quotes:
+                try:
+                    from ..engines.base import OptionContract
+                    option = OptionContract(
+                        spot=q.spot,
+                        strike=q.strike,
+                        time_to_maturity=q.maturity,
+                        risk_free_rate=q.rate,
+                        volatility=0.2,
+                        option_type=q.option_type
+                    )
+                    iv = bs_engine.implied_volatility(option, q.price)
+                    implied_vols.append(iv)
+                except:
+                    implied_vols.append(0.2)
+
+            implied_vols = np.array(implied_vols) 
+
+            svi = SVI()
+            try:
+                svi.calibrate(strikes, np.full(len(strikes), T), spot, forward, implied_vols) 
+                self.svi_models
+                self.maturities.append
+            except Exception as e:
+                print(f"warning: svi calibration failed for T = {T}: {e}")
+
+        self.maturities = sorted(self.maturities) 
+
+    def get_volatility(self, strike: float, maturity: float, spot: float, rate: float) -> float:
+        if not self.maturities:
+            raise ValueError("surface not calibrated")
+        
+        forward = spot * np.exp(rate * maturity) 
+
+        if maturity in self.svi_models:
+            return self.svi_models[maturity].get_volatility(strike, forward)
+        
+        maturities = np.array(self.maturities) 
+
+        if maturity < maturities[0]:
+            return self.svi_models[maturities[0]].get_volatility(strike, forward) 
+        elif maturity > maturities[-1]:
+            return self.svi_models[maturities[-1]].get_volatility(strike, forward)
+        else:
+            idx = np.searchsorted(maturities, maturity)
+            T1, T2 = maturities[idx - 1], maturities[idx]
+            vol1 = self.svi_models[T1].get_volatility(strike, forward)
+            vol2 = self.svi_models[T2].get_volatility(strike, forward)
+
+            var1, var2 = vol1**2 * T1, vol2**2 * T2 
+            var_interp = var1 + (var2 - var1) * (maturity - T1) / (T2 - T1)
+
+            return np.sqrt(var_interp / maturity)
